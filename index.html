@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sales Quotation Generator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  /* ==========================================
+     CSS STYLING GUIDE - You can customize these
+     ========================================== */
+  :root {
+    /* Color Variables - Change these to update colors throughout */
+    --brand-blue: #0288c8;          /* Main brand color (buttons, headers) */
+    --brand-blue-dark: #0288c8;     /* Darker shade for hover states */
+    --brand-blue-darker: #026a9c;   /* Even darker for active states */
+    --ash-bg: #e9ecef;              /* Light gray background for table headers */
+    --ash-text: #212529;            /* Dark text color for headers */
+    
+    /* Font Variables */
+    --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --company-name-size: 15pt;      /* Company name font size */
+    --company-name-weight: 600;     /* Company name font weight (400-900) */
+    --quote-title-size: 15pt;       /* "QUOTATION" title font size */
+    --quote-title-weight: 600;      /* "QUOTATION" title font weight */
+    --table-header-size: 0.8rem;    /* Table header font size */
+    --table-header-weight: 600;     /* Table header font weight */
+  }
+
+  body { 
+    background:#f4f6f9; 
+    font-family: var(--font-main); 
+    font-size: 14px;
+  }
+  
+  .card { 
+    border:none; 
+    box-shadow:0 2px 10px rgba(0,0,0,.06); 
+    font-family: var(--font-main); 
+  }
+  
+  /* Stock indicators */
+  .stock-ok { color:#198754; font-weight:600; }
+  .stock-low { color:#fd7e14; font-weight:600; }
+  .stock-out { color:#dc3545; font-weight:600; }
+  .item-row.selected { background:#e7f8fe; }
+  
+  /* Input sizes */
+  .inp-xs { width:70px; }
+  .inp-sm { width:90px; }
+  .inp-desc { width:220px; }
+  .sales-price { background:#f1f3f5; font-weight:600; color:#495057; cursor:not-allowed; }
+
+  /* Bootstrap overrides */
+  .bg-primary, .btn-primary { background-color: var(--brand-blue) !important; border-color: var(--brand-blue-dark) !important; }
+  .btn-primary:hover { background-color: var(--brand-blue-dark) !important; border-color: var(--brand-blue-darker) !important; }
+  .btn-outline-primary { color: var(--brand-blue); border-color: var(--brand-blue); }
+  .btn-outline-primary:hover { background-color: var(--brand-blue); border-color: var(--brand-blue); color:#fff; }
+  .text-primary { color: var(--brand-blue) !important; }
+  .form-control:focus, .form-select:focus { border-color: var(--brand-blue); box-shadow: 0 0 0 .2rem rgba(3,173,252,.25); }
+  .navbar-dark.bg-primary { background-color: var(--brand-blue) !important; }
+
+  /* Compact Quotation Lines Table */
+  .quote-lines-table thead th {
+    background-color: var(--ash-bg) !important;
+    color: var(--ash-text) !important;
+    padding: 5px 6px !important;
+    font-weight: var(--table-header-weight);
+    font-size: var(--table-header-size);
+    border-bottom: 2px solid #ced4da !important;
+    white-space: nowrap;
+  }
+  .quote-lines-table tbody td {
+    padding: 3px 5px !important;
+    font-size: 0.85rem;
+    vertical-align: middle;
+  }
+  .quote-lines-table input.form-control {
+    padding: 2px 4px !important;
+    font-size: 0.85rem !important;
+    height: auto !important;
+  }
+
+  /* Ash Total Box */
+  .grand-total-ash {
+    background-color: var(--ash-bg) !important;
+    color: var(--ash-text) !important;
+    border-radius: 6px;
+    padding: 8px 12px !important;
+  }
+
+  /* Hide extra customer info fields (but keep in DOM) */
+  .customer-extra-fields {
+    display: none !important;
+  }
+
+  /* Force background colors to print */
+  .a4-paper table thead tr {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  .a4-paper table th {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  .a4-paper .totals-table .grand-total {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .container-fluid { padding: 10px !important; }
+    .card-body { padding: 10px !important; }
+    .inp-desc { width: 150px !important; }
+    .quote-lines-table { font-size: 0.75rem !important; }
+    .quote-lines-table th, .quote-lines-table td { padding: 2px 3px !important; }
+    .navbar-brand { font-size: 0.9rem !important; }
+  }
+
+  /* ---------- A4 Preview Paper ---------- */
+  .a4-paper {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 15mm;
+    margin: 0 auto;
+    background: #fff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.15);
+    font-family: var(--font-main);
+    font-size: 10pt;
+    color: #222;
+    box-sizing: border-box;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .a4-paper .company-name { 
+    font-size: var(--company-name-size); 
+    font-weight: var(--company-name-weight); 
+    color: var(--brand-blue); 
+    margin:0; 
+    letter-spacing:-0.5px; 
+  }
+  
+  .a4-paper .quote-title { 
+    font-size: var(--quote-title-size); 
+    font-weight: var(--quote-title-weight); 
+    color: var(--brand-blue); 
+    margin:0; 
+    letter-spacing:-0.5px; 
+  }
+  
+  .a4-paper .totals-table td, .a4-paper .totals-table th { padding: 6px 10px; }
+  .a4-paper .totals-table .grand-total { background: var(--brand-blue); color:#fff; font-size:12pt; font-weight:700; }
+
+  /* Mobile responsive for preview modal */
+  @media (max-width: 768px) {
+    .a4-paper {
+      width: 100%;
+      padding: 10mm;
+      font-size: 9pt;
+    }
+    .a4-paper .company-name { font-size: 16pt; }
+    .a4-paper .quote-title { font-size: 18pt; }
+  }
+
+  /* ---------- Print Styles ---------- */
+  @media print {
+    @page { size: A4 portrait; margin: 0; }
+    html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    body > * { display: none !important; }
+    .modal { display: block !important; position: static !important; background: #fff !important; }
+    .modal-dialog { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+    .modal-content { border: none !important; box-shadow: none !important; background: #fff !important; }
+    .modal-header, .modal-footer { display: none !important; }
+    .modal-body { padding: 0 !important; background: #fff !important; }
+    .a4-paper { width: 100% !important; min-height: auto !important; padding: 12mm 15mm !important; margin: 0 !important; box-shadow: none !important; }
+    .a4-paper table { page-break-inside: auto; }
+    .a4-paper tr { page-break-inside: avoid; }
+    .a4-paper thead { display: table-header-group; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-primary no-print">
+  <div class="container-fluid">
+    <span class="navbar-brand mb-0 h1"><i class="bi bi-file-earmark-text"></i> <span class="d-none d-sm-inline">Sales </span>Quotation Generator</span>
+    <span class="text-white small" id="dateLabel"></span>
+  </div>
+</nav>
+
+<div class="container-fluid py-4 no-print">
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-2 align-items-center">
+        <div class="col-md-5 col-12">
+          <label class="form-label small mb-1"><strong><i class="bi bi-cloud-upload"></i> Upload Item List (Excel)</strong></label>
+          <input type="file" id="excelFile" class="form-control form-control-sm" accept=".xlsx,.xls,.csv">
+          <small class="text-muted d-none d-md-block">Columns: <code>ItemCode, Description, Category, UOM, UnitPrice, MaxDisc, TA Price, WH301, WH350</code></small>
+        </div>
+        <div class="col-md-4 col-12">
+          <label class="form-label small mb-1"><strong><i class="bi bi-database"></i> Cached Data</strong></label>
+          <div id="cacheStatus" class="small">
+            <span class="badge bg-secondary">No cached data</span>
+          </div>
+        </div>
+        <div class="col-md-3 col-12 text-md-end">
+          <label class="form-label small mb-1 d-none d-md-block">&nbsp;</label>
+          <button class="btn btn-sm btn-outline-secondary me-1 mb-1" id="sampleBtn"><i class="bi bi-download"></i> <span class="d-none d-sm-inline">Sample</span></button>
+          <button class="btn btn-sm btn-outline-danger mb-1" id="clearCacheBtn"><i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Clear</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    <div class="col-lg-8 col-12">
+
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="row g-2">
+            <div class="col-md-6 col-12">
+              <label class="form-label small mb-1"><i class="bi bi-search"></i> Search by Item Code / Description</label>
+              <input type="text" id="searchMain" class="form-control form-control-sm" placeholder="e.g. ITM-001 or chair..." disabled>
+            </div>
+            <div class="col-md-6 col-12">
+              <label class="form-label small mb-1"><i class="bi bi-upc-scan"></i> Search by Old Item Code</label>
+              <input type="text" id="searchOld" class="form-control form-control-sm" placeholder="e.g. LEG-101" disabled>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <strong><i class="bi bi-box-seam"></i> Item Catalog</strong>
+          <span class="badge bg-secondary" id="itemCount">0 items</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive" style="max-height:420px; overflow-y:auto;">
+            <table class="table table-hover table-sm align-middle mb-0" id="itemsTable">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th style="width:40px"></th>
+                  <th>Code</th>
+                  <th>Description</th>
+                  <th>Category</th>
+                  <th>UOM</th>
+                  <th class="text-center">WH301</th>
+                  <th class="text-center">WH350</th>
+                  <th class="text-end">Price</th>
+                  <th class="text-center">Max Disc%</th>
+                  <th class="text-center">TA</th>
+                </tr>
+              </thead>
+              <tbody id="itemsBody">
+                <tr><td colspan="10" class="text-center text-muted py-4">Upload an Excel file to begin</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <strong><i class="bi bi-cart-check"></i> Quotation Lines <span class="badge bg-primary ms-1" id="selCount">0</span></strong>
+          <button class="btn btn-sm btn-outline-danger" id="clearAllBtn"><i class="bi bi-x-circle"></i> Clear All</button>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive" style="max-height:340px; overflow-y:auto;">
+            <table class="table table-sm mb-0 quote-lines-table" id="quoteTable">
+              <thead class="sticky-top">
+                <tr>
+                  <th>Code</th>
+                  <th>Description <small class="text-muted fw-normal">(editable)</small></th>
+                  <th>UOM</th>
+                  <th class="text-center">Qty</th>
+                  <th class="text-end">Unit Price</th>
+                  <th class="text-end">Amount</th>
+                  <th class="text-end">Sales Price</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="quoteBody">
+                <tr><td colspan="8" class="text-center text-muted py-3">No items added yet — tick checkboxes above</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4 col-12">
+      <div class="card mb-3">
+        <div class="card-header bg-white">
+          <strong><i class="bi bi-person-badge"></i> Customer & Quote Info</strong>
+        </div>
+        <div class="card-body">
+          <div class="row g-2">
+            <div class="col-12"><label class="form-label small">Quote Ref</label>
+              <div class="input-group input-group-sm">
+                <input type="text" id="qNo" class="form-control" readonly>
+                <button class="btn btn-outline-primary" id="regenRefBtn" title="Generate new reference"><i class="bi bi-arrow-clockwise"></i></button>
+              </div>
+              <small class="text-muted">Format: 26UBA-MMDD-XXX</small>
+            </div>
+            <div class="col-12"><label class="form-label small">Customer Name</label>
+              <input type="text" id="custName" class="form-control form-control-sm" placeholder="Enter customer name"></div>
+            
+            <!-- NEW CUSTOMER CONTACT FIELD -->
+            <div class="col-12"><label class="form-label small">Customer Contact</label>
+              <input type="text" id="custContact" class="form-control form-control-sm" placeholder="Phone number or Email"></div>
+            
+            <!-- Hidden fields (kept for data but not shown) -->
+            <div class="customer-extra-fields">
+              <div class="col-6"><label class="form-label small">Date</label>
+                <input type="date" id="qDate" class="form-control form-control-sm"></div>
+              <div class="col-6"><label class="form-label small">&nbsp;</label>
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" id="autoRefDate">
+                  <label class="form-check-label small" for="autoRefDate">Auto-update ref on date change</label>
+                </div>
+              </div>
+              <div class="col-12"><label class="form-label small">Address</label>
+                <textarea id="custAddr" class="form-control form-control-sm" rows="2"></textarea></div>
+              <div class="col-6"><label class="form-label small">Global Discount %</label>
+                <input type="number" id="discount" class="form-control form-control-sm" value="0" min="0" max="100"></div>
+              <div class="col-6"><label class="form-label small">VAT %</label>
+                <input type="number" id="tax" class="form-control form-control-sm" value="15" min="0"></div>
+              <div class="col-6"><label class="form-label small">Quote Validity</label>
+                <input type="text" id="qValidity" class="form-control form-control-sm" value="2 days"></div>
+              <div class="col-6"><label class="form-label small">Payment Terms</label>
+                <input type="text" id="qPayment" class="form-control form-control-sm" value="100% advance"></div>
+              <div class="col-12"><label class="form-label small">Remark 1</label>
+                <input type="text" id="remark1" class="form-control form-control-sm" placeholder="Optional remark..."></div>
+              <div class="col-12"><label class="form-label small">Remark 2</label>
+                <input type="text" id="remark2" class="form-control form-control-sm" placeholder="Optional remark..."></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-3">
+        <div class="card-header bg-white"><strong><i class="bi bi-calculator"></i> Totals</strong></div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between"><span>Amount (excl. VAT):</span><span id="subtotal">0.00</span></div>
+          <div class="d-flex justify-content-between"><span>Discount:</span><span id="discAmt">0.00</span></div>
+          <hr class="my-1">
+          <div class="d-flex justify-content-between fw-bold fs-5 grand-total-ash"><span>Amount (incl. VAT):</span><span id="grandTotal">0.00</span></div>
+        </div>
+      </div>
+
+      <div class="d-grid gap-2">
+        <button class="btn btn-success" id="previewBtn"><i class="bi bi-eye"></i> Preview Quotation</button>
+        <div class="row g-2">
+          <div class="col-6"><button class="btn btn-primary w-100" id="printBtn"><i class="bi bi-printer"></i> Print / PDF</button></div>
+          <div class="col-6"><button class="btn btn-warning w-100" id="excelBtn"><i class="bi bi-file-earmark-excel"></i> Export Excel</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable" style="max-width: 230mm;">
+    <div class="modal-content">
+      <div class="modal-header no-print">
+        <h5 class="modal-title">Quotation Preview (A4 Portrait)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0" style="background:#e9ecef;">
+        <div id="quotationPreview"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* ---------- Constants ---------- */
+const CACHE_KEY = 'sqg_items_cache_v14';
+const REF_PREFIX = '26UBA';
+
+/* ---------- State ---------- */
+let items = [];
+let selected = {};       
+let selectedOrder = [];  
+
+/* ---------- Init ---------- */
+document.getElementById('dateLabel').textContent =
+  new Date().toLocaleDateString('en-GB',{weekday:'long', year:'numeric', month:'long', day:'numeric'});
+document.getElementById('qDate').valueAsDate = new Date();
+document.getElementById('qNo').value = generateQuoteRef();
+loadFromCache();
+
+/* ---------- Quote Reference Generator ---------- */
+function generateQuoteRef(dateObj) {
+  const d = dateObj || new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const rand = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+  return `${REF_PREFIX}-${mm}${dd}-${rand}`;
+}
+
+document.getElementById('regenRefBtn').addEventListener('click', () => {
+  const dateInput = document.getElementById('qDate').value;
+  const d = dateInput ? new Date(dateInput) : new Date();
+  document.getElementById('qNo').value = generateQuoteRef(d);
+});
+
+document.getElementById('qDate').addEventListener('change', () => {
+  if (document.getElementById('autoRefDate').checked) {
+    const d = new Date(document.getElementById('qDate').value);
+    document.getElementById('qNo').value = generateQuoteRef(d);
+  }
+});
+
+/* ---------- Cache ---------- */
+function loadFromCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data.items && data.items.length) {
+        items = data.items;
+        document.getElementById('searchMain').disabled = false;
+        document.getElementById('searchOld').disabled = false;
+        updateCacheStatus(data.timestamp);
+        renderItems();
+      }
+    }
+  } catch(e) { console.warn('Cache load failed', e); }
+}
+
+function saveToCache() {
+  const data = { items, timestamp: new Date().toISOString() };
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+    updateCacheStatus(data.timestamp);
+  } catch(e) { alert('Could not save cache: ' + e.message); }
+}
+
+function updateCacheStatus(ts) {
+  const d = new Date(ts);
+  document.getElementById('cacheStatus').innerHTML =
+    `<span class="badge bg-success"><i class="bi bi-check-circle"></i> Cached</span>
+     <small class="text-muted ms-1">${items.length} items • ${d.toLocaleString()}</small>`;
+}
+
+document.getElementById('clearCacheBtn').addEventListener('click', () => {
+  if (!confirm('Clear cached items? You will need to re-upload the Excel file.')) return;
+  localStorage.removeItem(CACHE_KEY);
+  items = []; selected = {}; selectedOrder = [];
+  document.getElementById('searchMain').disabled = true;
+  document.getElementById('searchOld').disabled = true;
+  document.getElementById('searchMain').value = '';
+  document.getElementById('searchOld').value = '';
+  document.getElementById('cacheStatus').innerHTML = '<span class="badge bg-secondary">No cached data</span>';
+  renderItems(); renderQuote();
+});
+
+/* ---------- Excel Upload ---------- */
+document.getElementById('excelFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const wb = XLSX.read(ev.target.result, {type:'binary'});
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+    items = rows.map(r => {
+      let maxDiscVal = r.MaxDisc || r.max_disc || r['Max Disc'] || r['Max_Disc'];
+      let parsedMaxDisc = (maxDiscVal !== undefined && maxDiscVal !== '' && !isNaN(parseFloat(maxDiscVal))) ? parseFloat(maxDiscVal) : null;
+      
+      return {
+        code:    String(r.ItemCode   || r.Code || r['Item Code'] || '').trim(),
+        oldCode: String(r.OldItemCode || r.OldCode || r['Old Item Code'] || r['Old Code'] || '').trim(),
+        desc:    String(r.Description || r.ItemName || r.Name || '').trim(),
+        category:String(r.Category || r.Cat || '').trim(),
+        uom:     String(r.UOM || r.Unit || '').trim(),
+        price:   parseFloat(r.UnitPrice || r.Price || r.Rate || r.SalesPrice || 0) || 0,
+        maxDisc: parsedMaxDisc,
+        taPrice: String(r.TAPrice || r['TA Price'] || r.TA || '').trim(),
+        wh301:   parseFloat(r.WH301 || r['WH 301'] || r.Stock_WH301 || 0) || 0,
+        wh350:   parseFloat(r.WH350 || r['WH 350'] || r.Stock_WH350 || 0) || 0
+      };
+    }).filter(i => i.code);
+
+    document.getElementById('searchMain').disabled = false;
+    document.getElementById('searchOld').disabled = false;
+    saveToCache();
+    renderItems();
+  };
+  reader.readAsBinaryString(file);
+});
+
+/* ---------- Sample Excel ---------- */
+document.getElementById('sampleBtn').addEventListener('click', () => {
+  const sample = [
+    {ItemCode:'ITM-001', OldItemCode:'LEG-101', Description:'Office Chair - Ergonomic', Category:'Fittings', UOM:'PCS', UnitPrice:450, MaxDisc: 25, 'TA Price':'Yes', WH301:25, WH350:8},
+    {ItemCode:'ITM-002', OldItemCode:'LEG-102', Description:'Wooden Desk 120x60cm', Category:'Fittings', UOM:'PCS', UnitPrice:1200, MaxDisc: '', 'TA Price':'', WH301:5, WH350:0},
+    {ItemCode:'ITM-003', OldItemCode:'LEG-103', Description:'Copper Pipe 1/2"', Category:'Pipes', UOM:'MTR', UnitPrice:68, MaxDisc: 10, 'TA Price':'Yes', WH301:120, WH350:80},
+    {ItemCode:'ITM-004', OldItemCode:'LEG-104', Description:'PVC Pipe 4"', Category:'Pipes', UOM:'MTR', UnitPrice:45, MaxDisc: '', 'TA Price':'', WH301:200, WH350:150},
+  ];
+  const ws = XLSX.utils.json_to_sheet(sample);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Items');
+  XLSX.writeFile(wb, 'sample_items.xlsx');
+});
+
+/* ---------- Live Search (dual) ---------- */
+document.getElementById('searchMain').addEventListener('input', renderItems);
+document.getElementById('searchOld').addEventListener('input', renderItems);
+
+function renderItems() {
+  const qMain = document.getElementById('searchMain').value.toLowerCase().trim();
+  const qOld  = document.getElementById('searchOld').value.toLowerCase().trim();
+  const body  = document.getElementById('itemsBody');
+
+  const filtered = items.filter(i => {
+    const mainMatch = !qMain || i.code.toLowerCase().includes(qMain) || i.desc.toLowerCase().includes(qMain);
+    const oldMatch  = !qOld  || i.oldCode.toLowerCase().includes(qOld);
+    return mainMatch && oldMatch;
+  });
+
+  document.getElementById('itemCount').textContent = `${filtered.length} / ${items.length} items`;
+
+  if (!items.length) {
+    body.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4">Upload an Excel file to begin</td></tr>`;
+    return;
+  }
+  if (!filtered.length) {
+    body.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-3">No items match your search</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = filtered.map(it => {
+    const isSel = !!selected[it.code];
+    const isTA = (it.taPrice || '').toLowerCase() === 'yes';
+    return `
+      <tr class="item-row ${isSel?'selected':''}">
+        <td><input type="checkbox" class="form-check-input" data-code="${it.code}" ${isSel?'checked':''}></td>
+        <td><code>${it.code}</code></td>
+        <td>${it.desc}</td>
+        <td><small>${it.category || '—'}</small></td>
+        <td>${it.uom}</td>
+        <td class="text-center">${stockBadge(it.wh301)}</td>
+        <td class="text-center">${stockBadge(it.wh350)}</td>
+        <td class="text-end">${it.price.toFixed(2)}</td>
+        <td class="text-center">${it.maxDisc !== null ? it.maxDisc + '%' : '<span class="text-muted">—</span>'}</td>
+        <td class="text-center">${isTA ? '<span class="badge bg-info">TA</span>' : '<span class="text-muted">—</span>'}</td>
+      </tr>`;
+  }).join('');
+
+  body.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', e => toggleItem(e.target.dataset.code));
+  });
+}
+
+function stockBadge(n) {
+  if (n <= 0)  return `<span class="stock-out">${n}</span>`;
+  if (n <= 10) return `<span class="stock-low">${n}</span>`;
+  return `<span class="stock-ok">${n}</span>`;
+}
+
+/* ---------- Selection (Maintains Order) ---------- */
+function toggleItem(code) {
+  const item = items.find(i => i.code === code);
+  if (selected[code]) {
+    delete selected[code];
+    selectedOrder = selectedOrder.filter(c => c !== code);
+  } else {
+    selected[code] = { item, qty: 1, price: item.price, desc: item.desc };
+    selectedOrder.push(code);
+  }
+  renderItems();
+  renderQuote();
+}
+
+/* ---------- Quotation Lines ---------- */
+function renderQuote() {
+  const body = document.getElementById('quoteBody');
+  document.getElementById('selCount').textContent = selectedOrder.length;
+
+  if (!selectedOrder.length) {
+    body.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-3">No items added yet — tick checkboxes above</td></tr>`;
+  } else {
+    body.innerHTML = selectedOrder.map(code => {
+      const line = selected[code];
+      return `
+      <tr data-row="${line.item.code}">
+        <td><code>${line.item.code}</code></td>
+        <td>
+          <input type="text" class="form-control form-control-sm inp-desc" data-code="${line.item.code}" data-field="desc" value="${escapeAttr(line.desc)}">
+        </td>
+        <td>${line.item.uom}</td>
+        <td class="text-center">
+          <input type="number" class="form-control form-control-sm inp-xs" data-code="${line.item.code}" data-field="qty" value="${line.qty}" min="1">
+        </td>
+        <td class="text-end">
+          <input type="number" class="form-control form-control-sm inp-sm text-end" data-code="${line.item.code}" data-field="price" value="${line.price.toFixed(2)}" step="0.01" min="0">
+        </td>
+        <td class="text-end fw-bold line-amount">${(line.price*line.qty).toFixed(2)}</td>
+        <td class="text-end">
+          <input type="text" class="form-control form-control-sm inp-sm text-end sales-price" value="${line.item.price.toFixed(2)}" readonly tabindex="-1">
+        </td>
+        <td><button class="btn btn-sm btn-link text-danger p-0" data-rm="${line.item.code}"><i class="bi bi-x-circle"></i></button></td>
+      </tr>`;
+    }).join('');
+
+    body.querySelectorAll('[data-code]').forEach(inp => {
+      inp.addEventListener('input', handleLineInput);
+    });
+    body.querySelectorAll('[data-rm]').forEach(b => {
+      b.addEventListener('click', e => toggleItem(e.currentTarget.dataset.rm));
+    });
+  }
+  recalc();
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function getMinAllowedPrice(line) {
+  if (line.item.maxDisc !== null && line.item.maxDisc > 0) {
+    return line.item.price * (1 - line.item.maxDisc / 100);
+  }
+  return line.item.price;
+}
+
+function handleLineInput(e) {
+  const code = e.target.dataset.code;
+  const field = e.target.dataset.field;
+  const line = selected[code];
+  if (!line) return;
+
+  const row = e.target.closest('tr');
+
+  if (field === 'desc') {
+    line.desc = e.target.value;
+    return;
+  } else if (field === 'qty') {
+    line.qty = Math.max(1, parseFloat(e.target.value) || 1);
+  } else if (field === 'price') {
+    line.price = Math.max(0, parseFloat(e.target.value) || 0);
+  }
+
+  const amount = line.price * line.qty;
+  row.querySelector('.line-amount').textContent = amount.toFixed(2);
+  recalc();
+}
+
+/* ---------- Validate Prices Before Preview/Print ---------- */
+function validateAllPrices() {
+  const errors = [];
+  selectedOrder.forEach(code => {
+    const line = selected[code];
+    const minPrice = getMinAllowedPrice(line);
+    if (line.price < minPrice - 0.01) {
+      let msg = `Item ${line.item.code}: Unit price ${line.price.toFixed(2)} is below minimum ${minPrice.toFixed(2)}`;
+      if (line.item.maxDisc !== null) {
+        msg += ` (Max discount ${line.item.maxDisc}% allowed)`;
+      }
+      errors.push(msg);
+    }
+  });
+  return errors;
+}
+
+/* ---------- Totals ---------- */
+function recalc() {
+  const sub = selectedOrder.reduce((s, code) => {
+    const l = selected[code];
+    return s + l.price * l.qty;
+  }, 0);
+  const dPct = parseFloat(document.getElementById('discount').value) || 0;
+  const tPct = parseFloat(document.getElementById('tax').value) || 0;
+  const disc = sub * dPct / 100;
+  const taxable = sub - disc;
+  const tax = taxable * tPct / 100;
+  const total = taxable + tax;
+
+  document.getElementById('subtotal').textContent  = sub.toFixed(2);
+  document.getElementById('discAmt').textContent   = disc.toFixed(2);
+  document.getElementById('grandTotal').textContent = total.toFixed(2);
+}
+['discount','tax'].forEach(id => document.getElementById(id).addEventListener('input', recalc));
+
+document.getElementById('clearAllBtn').addEventListener('click', () => {
+  if (!selectedOrder.length) return;
+  selected = {}; selectedOrder = []; renderItems(); renderQuote();
+});
+
+/* ---------- Build quotation data ---------- */
+function buildQuotationData() {
+  const sub = selectedOrder.reduce((s, code) => {
+    const l = selected[code];
+    return s + l.price * l.qty;
+  }, 0);
+  const dPct = parseFloat(document.getElementById('discount').value) || 0;
+  const tPct = parseFloat(document.getElementById('tax').value) || 0;
+  const disc = sub * dPct / 100;
+  const taxable = sub - disc;
+  const tax = taxable * tPct / 100;
+  const total = taxable + tax;
+
+  return {
+    qNo: document.getElementById('qNo').value,
+    qDate: document.getElementById('qDate').value,
+    custName: document.getElementById('custName').value,
+    custContact: document.getElementById('custContact').value,
+    custAddr: document.getElementById('custAddr').value,
+    dPct, tPct,
+    validity: document.getElementById('qValidity').value,
+    payment: document.getElementById('qPayment').value,
+    remark1: document.getElementById('remark1').value,
+    remark2: document.getElementById('remark2').value,
+    entries: selectedOrder.map(code => {
+      const line = selected[code];
+      return {
+        code: line.item.code,
+        desc: line.desc,
+        uom: line.item.uom,
+        qty: line.qty,
+        price: line.price,
+        amount: line.price * line.qty
+      };
+    }),
+    sub, disc, tax, total
+  };
+}
+
+/* ---------- Build A4 HTML ---------- */
+function buildA4Html(q) {
+  const rows = q.entries.map((l, i) => `
+    <tr>
+      <td style="text-align:center; padding:12px 8px; border-bottom:1px solid #e9ecef;">${i+1}</td>
+      <td style="padding:12px 8px; border-bottom:1px solid #e9ecef; font-weight:500;">${l.code}</td>
+      <td style="padding:12px 8px; border-bottom:1px solid #e9ecef;">${escapeHtml(l.desc)}</td>
+      <td style="text-align:center; padding:12px 8px; border-bottom:1px solid #e9ecef;">${l.uom}</td>
+      <td style="text-align:right; padding:12px 8px; border-bottom:1px solid #e9ecef;">${l.qty}</td>
+      <td style="text-align:right; padding:12px 8px; border-bottom:1px solid #e9ecef;">${l.price.toFixed(2)}</td>
+      <td style="text-align:right; padding:12px 8px; border-bottom:1px solid #e9ecef; font-weight:700;">${l.amount.toFixed(2)}</td>
+    </tr>`).join('');
+
+  const remarksHtml = (q.remark1 || q.remark2) ? `
+    <div style="margin-top:16px; font-size:9.5pt;">
+      ${q.remark1 ? `<div style="margin-bottom:4px;"><strong>Remark 1:</strong> ${escapeHtml(q.remark1)}</div>` : ''}
+      ${q.remark2 ? `<div style="margin-bottom:4px;"><strong>Remark 2:</strong> ${escapeHtml(q.remark2)}</div>` : ''}
+    </div>` : '';
+
+  return `
+    <div class="a4-paper">
+      <!-- Header - Company info left, QUOTATION right -->
+      <table style="width:100%; border-bottom:2.5px solid #03adfc; padding-bottom:10px;">
+        <tr>         
+
+	     <td style="vertical-align:middle;">
+                  <div class="company-name">FAWAZ Refrigeration & A/C Co</div>
+                  <div style="font-size:10pt; color:#555; margin-top:4px; font-weight:500;">
+                    Baladiya Street, Jeddah<br>
+                    Phone: 053 263 4140 &nbsp;|&nbsp; ubaid.kunju@fawaz.com
+                  </div>
+                </td>
+
+          <td style="vertical-align:top; text-align:right; width:40%;">
+            <div class="quote-title">QUOTATION</div>
+            <div style="font-size:10pt; margin-top:8px; font-weight:500;">
+              <strong style="font-weight:700;">Ref:</strong> ${q.qNo}<br>
+              <strong style="font-weight:700;">Date:</strong> ${q.qDate}
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Bill To -->
+      <div style="margin-top:16px; padding:10px 12px; background:#f8f9fa; border-left:4px solid #03adfc; border-radius:0 4px 4px 0;">
+        <div style="font-size:8.5pt; color:#03adfc; font-weight:700; letter-spacing:1px; margin-bottom:4px;">BILL TO</div>
+        <div style="font-size:11pt; font-weight:700;">${q.custName || '—'}</div>
+        ${q.custContact ? `<div style="font-size:9.5pt; color:#333; margin-top:2px;"><i class="bi bi-telephone-fill" style="font-size:8pt;"></i> ${escapeHtml(q.custContact)}</div>` : ''}
+        <div style="font-size:9.5pt; color:#555; margin-top:2px;">${escapeHtml(q.custAddr).replace(/\n/g,'<br>')}</div>
+      </div>
+
+      <!-- Items Table -->
+      <table style="width:100%; border-collapse:collapse; margin-top:13px;">
+        <thead>
+          <tr style="background:#03adfc; color:#fff;">
+            <th style="padding:10px 8px; border:1px solid #0288c8; width:30px; text-align:center; font-weight:500;">#</th>
+            <th style="padding:10px 8px; border:1px solid #0288c8; width:80px; font-weight:500;">Code</th>
+            <th style="padding:10px 8px; border:1px solid #0288c8; width:45%; font-weight:500;">Description</th>
+            <th style="padding:10px 8px; border:1px solid #0288c8; width:50px; text-align:center; font-weight:500;">UOM</th>
+            <th style="padding:10px 8px; border:1px solid #0288c8; width:50px; text-align:right; font-weight:500;">Qty</th>
+            <th style="padding:10px 8px; border:1px solid #0288c8; width:90px; text-align:right; font-weight:500;">Unit Price</th>
+            <th style="padding:10px 8px; border:1px solid #0288c8; width:90px; text-align:right; font-weight:50012:31 PM 04/07/2026;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows || `<tr><td colspan="7" style="padding:20px; text-align:center; color:#888;">No items</td></tr>`}
+        </tbody>
+      </table>
+
+
+      <!-- Totals + Terms -->
+      <table style="width:100%; margin-top:18px;">
+        <tr>
+          <td style="width:55%; vertical-align:top; padding-right:10px;">
+            <div style="font-size:9.5pt; line-height:1.8;">
+              <div><strong style="font-weight:700;">Quote Validity:</strong> ${escapeHtml(q.validity)}</div>
+              <div><strong style="font-weight:700;">Payment Terms:</strong> ${escapeHtml(q.payment)}</div>
+            </div>
+            ${remarksHtml}
+          </td>
+          <td style="width:45%; vertical-align:top;">
+            <table class="totals-table" style="width:100%; border-collapse:collapse; font-size:10pt;">
+              <tr><td style="border-bottom:1px solid #dee2e6; padding:8px 10px;">Amount (excl. VAT)</td><td style="text-align:right; border-bottom:1px solid #dee2e6; padding:8px 10px; font-weight:500;">${q.sub.toFixed(2)}</td></tr>
+              <tr><td style="border-bottom:1px solid #dee2e6; padding:8px 10px;">Discount (${q.dPct}%)</td><td style="text-align:right; border-bottom:1px solid #dee2e6; padding:8px 10px; font-weight:500;">-${q.disc.toFixed(2)}</td></tr>
+              <tr class="grand-total" style="background:#03adfc !important; color:#fff !important; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important;"><td style="padding:10px;"><strong>Amount (incl. VAT)</strong></td><td style="text-align:right; padding:10px;"><strong>${q.total.toFixed(2)}</strong></td></tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+
+ <!-- Professional Footer Section -->
+      <div style="margin-top: 30px; padding-top: 15px; border-bottom: 1px solid #e9ecef; text-align: left;">
+        <p style="font-size: 10pt; color: #666; font-style: bold; margin-bottom: 8px;">
+
+                   <u><b>Al Rajhi Bank Details</b></u></br>
+          <b>Beneficiary Name : Fawaz Refrigeration & Air Cond. Cont. Co. LLC </b></br>
+                  <b> IBAN NO. : SA72 8000 0578 6080 1001 6030 </br>
+        </p>
+        
+      </div>
+<div style="margin-top: 30px; padding-top: 15px;  solid #e9ecef; text-align: center;">
+        
+        <p style="font-size: 10pt; font-weight: 600; color: #03adfc; margin: 0;">
+          Thank you for your business! We look forward to serving you.
+        </p>
+      </div>
+
+    </div>`;
+}
+
+/* ---------- Preview & Print (with validation) ---------- */
+function doPreview(isPrint = false) {
+  if (!selectedOrder.length) { alert('Please add at least one item.'); return; }
+  
+  const errors = validateAllPrices();
+  if (errors.length > 0) {
+    alert('Price Validation Errors:\n\n' + errors.join('\n'));
+    return;
+  }
+  
+  const q = buildQuotationData();
+  document.getElementById('quotationPreview').innerHTML = buildA4Html(q);
+  const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+  modal.show();
+  
+  if (isPrint) {
+    setTimeout(() => window.print(), 600);
+  }
+}
+
+document.getElementById('previewBtn').addEventListener('click', () => doPreview(false));
+document.getElementById('printBtn').addEventListener('click', () => doPreview(true));
+
+/* ---------- Excel Export (without Old Item Code) ---------- */
+document.getElementById('excelBtn').addEventListener('click', () => {
+  if (!selectedOrder.length) { alert('Please add at least one item to export.'); return; }
+  const q = buildQuotationData();
+
+  const aoa = [
+    ['YOUR COMPANY'],
+    ['123 Business Street, City'],
+    ['Phone: +00 000 000 | info@company.com'],
+    [],
+    ['QUOTATION'],
+    ['Ref:', q.qNo, '', '', '', 'Date:', q.qDate],
+    [],
+    ['Bill To:', q.custName || '—'],
+    ['Contact:', q.custContact || ''],
+    ['', q.custAddr],
+    [],
+    ['#', 'Item Code', 'Description', 'UOM', 'Qty', 'Unit Price', 'Amount'],
+    ...q.entries.map((l, i) => [
+      i+1, l.code, l.desc, l.uom,
+      l.qty, l.price, l.amount
+    ]),
+    [],
+    ['', '', '', '', 'Amount (excl. VAT):', q.sub],
+    ['', '', '', '', `Discount (${q.dPct}%):`, -q.disc],
+    ['', '', '', '', 'Amount (incl. VAT):', q.total],
+    [],
+    ['Quote Validity:', q.validity],
+    ['Payment Terms:', q.payment],
+    q.remark1 ? ['Remark 1:', q.remark1] : null,
+    q.remark2 ? ['Remark 2:', q.remark2] : null,
+  ].filter(r => r !== null);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [
+    {wch:14}, {wch:12}, {wch:34}, {wch:6},
+    {wch:6}, {wch:12}, {wch:12}
+  ];
+  ws['!merges'] = [
+    {s:{r:0,c:0}, e:{r:0,c:4}},
+    {s:{r:4,c:0}, e:{r:4,c:4}},
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Quotation');
+  const fname = `Quotation_${q.qNo}_${q.qDate || 'draft'}.xlsx`;
+  XLSX.writeFile(wb, fname);
+});
+</script>
+</body>
+</html>
